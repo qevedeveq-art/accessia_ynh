@@ -43,9 +43,10 @@ services:
       - "127.0.0.1:__PORT__:3001"
     environment:
       NEXT_PUBLIC_API_URL: "https://__DOMAIN__"
-      # Rewrite server-side Next.js → backend via réseau interne Docker
       INTERNAL_API_URL: "http://backend:8000"
       NODE_ENV: production
+      # SECURITY FIX: active le mode production dans FastAPI (vérif SECRET_KEY)
+      ENV: production
       NEXT_TELEMETRY_DISABLED: "1"
       NODE_OPTIONS: "--max-old-space-size=512"
     restart: always

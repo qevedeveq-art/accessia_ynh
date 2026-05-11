@@ -12,13 +12,10 @@ source /usr/share/yunohost/helpers
 domain=$YNH_APP_ARG_DOMAIN
 app=$YNH_APP_INSTANCE_NAME
 
-# BUG FIX: récupérées APRÈS que YunoHost resources les a créées
 install_dir=$(ynh_app_setting_get --key=install_dir)
 data_dir=$(ynh_app_setting_get --key=data_dir)
 port=$(ynh_app_setting_get --key=port)
 port_backend=$(ynh_app_setting_get --key=port_backend)
-
-# BUG FIX: suppression de ynh_webpath_register — géré par [resources.nginx]
 
 #=================================================
 # VÉRIFICATION DOCKER
@@ -34,16 +31,14 @@ fi
 #=================================================
 ynh_script_progression "Génération des secrets..."
 
-secret_key=$(openssl rand -hex 32)
+secret_key=$(ynh_string_random --length=64)
 ynh_app_setting_set --key=secret_key --value="$secret_key"
 
 #=================================================
-# CLONE DU DÉPÔT SOURCE (repo CRM = la source de l'app)
+# CLONE DU DÉPÔT SOURCE
 #=================================================
 ynh_script_progression "Clonage du code source..."
 
-# URL du repo contenant docker-compose.yml, frontend/, backend/
-# BUG FIX: on clone le repo CRM directement dans install_dir (pas de sous-dossier /CRM/)
 REPO_URL="https://github.com/qevedeveq-art/accessia-crm.git"
 
 if [ -d "$install_dir/.git" ]; then
@@ -70,15 +65,15 @@ chmod 700 "$data_dir/_ACCESSIA_APP"
 #=================================================
 ynh_script_progression "Génération de la configuration Docker..."
 
-# BUG FIX: ynh_add_config substitue __VAR__ depuis les variables shell exportées
-# Pas de --vars (non supporté uniformément) — on exporte les variables
+# ynh_config_add substitue __VAR__ depuis les variables shell (helpers v2.1)
 export domain port port_backend secret_key data_dir install_dir
 
-ynh_add_config \
+# SECURITY FIX: nom correct helpers v2.1 (ynh_add_config → ynh_config_add)
+ynh_config_add \
     --template="docker-compose.override.yml" \
     --destination="$install_dir/docker-compose.override.yml"
 
-# Le fichier contient SECRET_KEY — permissions strictes
+# Le fichier contient SECRET_KEY — accès root uniquement
 chmod 600 "$install_dir/docker-compose.override.yml"
 chown root:root "$install_dir/docker-compose.override.yml"
 
@@ -87,9 +82,7 @@ chown root:root "$install_dir/docker-compose.override.yml"
 #=================================================
 ynh_script_progression "Build Docker (5-10 minutes)..."
 
-# BUG FIX: on exécute Docker en root (install script = root)
-# usermod -aG n'a pas d'effet sur la session courante → on n'utilise PAS ynh_exec_as_app ici
-# --project-name explicite pour éviter les collisions
+# Scripts d'install tournent en root — pas besoin de ynh_exec_as_app pour Docker
 docker compose \
     --project-name accessia \
     -f "$install_dir/docker-compose.yml" \
@@ -101,9 +94,9 @@ docker compose \
 #=================================================
 ynh_script_progression "Configuration nginx..."
 
-# BUG FIX: on exporte port_backend pour la substitution dans nginx.conf
+# SECURITY FIX: nom correct helpers v2.1 (ynh_add_nginx_config → ynh_config_add_nginx)
 export port_backend
-ynh_add_nginx_config
+ynh_config_add_nginx
 
 #=================================================
 # VÉRIFICATION DU DÉMARRAGE

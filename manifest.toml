@@ -41,6 +41,11 @@ ram.runtime = "1024M"
 
     [resources.data_dir]
 
+    # SECURITY FIX: requis pour que init_main_permission prenne effet
+    # Sans ce bloc, l'accès ne peut pas être contrôlé depuis le portail YunoHost
+    [resources.permissions]
+    main.url = "/"
+
     [resources.ports]
     [resources.ports.main]
     default = 3001
@@ -49,6 +54,4 @@ ram.runtime = "1024M"
     default = 8001
 
     [resources.apt]
-    # BUG FIX: format espace, pas virgule (requis par YunoHost v2)
-    # sqlite3 requis pour le backup WAL-safe
     packages = "docker.io docker-compose-plugin git openssl sqlite3"

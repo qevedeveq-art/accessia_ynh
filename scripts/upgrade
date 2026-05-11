@@ -23,12 +23,9 @@ db_path="$data_dir/_ACCESSIA_APP/sensia.db"
 backup_file="$data_dir/backups/sensia_pre_upgrade_$(date +%Y%m%d_%H%M%S).db"
 
 if [ -f "$db_path" ]; then
-    # BUG FIX: WAL checkpoint avant copie pour garantir la cohérence
     sqlite3 "$db_path" "PRAGMA wal_checkpoint(FULL);" 2>/dev/null || true
     cp "$db_path" "$backup_file"
     ynh_print_info "Backup : $backup_file"
-
-    # Garder seulement les 10 derniers backups pre-upgrade
     ls -t "$data_dir/backups/sensia_pre_upgrade_"*.db 2>/dev/null | tail -n +11 | xargs rm -f || true
 fi
 
@@ -37,7 +34,6 @@ fi
 #=================================================
 ynh_script_progression "Mise à jour du code source..."
 
-# BUG FIX: git dans install_dir directement (pas de /CRM/)
 git -C "$install_dir" pull --rebase
 chown -R "$app:$app" "$install_dir"
 
@@ -59,7 +55,8 @@ ynh_script_progression "Regénération de la configuration Docker..."
 
 export domain port port_backend secret_key data_dir install_dir
 
-ynh_add_config \
+# SECURITY FIX: nom correct helpers v2.1
+ynh_config_add \
     --template="docker-compose.override.yml" \
     --destination="$install_dir/docker-compose.override.yml"
 
@@ -80,7 +77,8 @@ docker compose \
 #=================================================
 # MISE À JOUR NGINX
 #=================================================
+# SECURITY FIX: nom correct helpers v2.1
 export port_backend
-ynh_add_nginx_config
+ynh_config_add_nginx
 
 ynh_script_progression "Mise à jour terminée !"

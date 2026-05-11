@@ -9,6 +9,7 @@ source /usr/share/yunohost/helpers
 app=$YNH_APP_INSTANCE_NAME
 install_dir=$(ynh_app_setting_get --key=install_dir)
 data_dir=$(ynh_app_setting_get --key=data_dir)
+domain=$(ynh_app_setting_get --key=domain)
 
 #=================================================
 # BACKUP SQLITE (WAL-safe)
@@ -18,11 +19,8 @@ ynh_script_progression "Sauvegarde de la base de données SQLite..."
 db_path="$data_dir/_ACCESSIA_APP/sensia.db"
 
 if [ -f "$db_path" ]; then
-    # BUG FIX: WAL checkpoint + cp au lieu de sqlite3 .backup (plus fiable)
-    # Le checkpoint force l'écriture des pages WAL dans le fichier principal
     sqlite3 "$db_path" "PRAGMA wal_checkpoint(FULL);" 2>/dev/null || true
     cp "$db_path" "$YNH_CWD/sensia.db"
-    # Copier aussi le WAL s'il existe encore (transaction en cours possible)
     [ -f "${db_path}-wal" ] && cp "${db_path}-wal" "$YNH_CWD/sensia.db-wal" || true
     [ -f "${db_path}-shm" ] && cp "${db_path}-shm" "$YNH_CWD/sensia.db-shm" || true
 else
@@ -30,18 +28,18 @@ else
 fi
 
 #=================================================
-# BACKUP DE LA CONFIGURATION
+# BACKUP DE LA CONFIGURATION DOCKER
 #=================================================
 ynh_script_progression "Sauvegarde de la configuration Docker..."
 
-# BUG FIX: chemin direct (pas de /CRM/)
-ynh_backup --src_path="$install_dir/docker-compose.override.yml"
+# SECURITY FIX: syntaxe positionnelle correcte (helpers v2.1) — pas de --src_path
+ynh_backup "$install_dir/docker-compose.override.yml"
 
 #=================================================
 # BACKUP NGINX
 #=================================================
 ynh_script_progression "Sauvegarde de la configuration nginx..."
 
-ynh_backup --src_path="/etc/nginx/conf.d/$domain.d/$app.conf"
+ynh_backup "/etc/nginx/conf.d/$domain.d/$app.conf"
 
 ynh_script_progression "Backup terminé."

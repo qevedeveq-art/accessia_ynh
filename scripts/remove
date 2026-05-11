@@ -15,7 +15,6 @@ install_dir=$(ynh_app_setting_get --key=install_dir)
 ynh_script_progression "Arrêt des conteneurs Docker..."
 
 if [ -f "$install_dir/docker-compose.yml" ]; then
-    # BUG FIX: --project-name cohérent avec l'install
     docker compose \
         --project-name accessia \
         -f "$install_dir/docker-compose.yml" \
@@ -23,13 +22,13 @@ if [ -f "$install_dir/docker-compose.yml" ]; then
         down --volumes --remove-orphans 2>/dev/null || true
 fi
 
-# Supprimer les images du projet accessia uniquement
 docker image prune -f --filter "label=com.docker.compose.project=accessia" 2>/dev/null || true
 
 #=================================================
 # SUPPRESSION NGINX
 #=================================================
-ynh_remove_nginx_config
+# SECURITY FIX: nom correct helpers v2.1 (ynh_remove_nginx_config → ynh_config_remove_nginx)
+ynh_config_remove_nginx
 
 # Les données dans data_dir sont conservées par YunoHost (sauf --purge)
 # Pour tout supprimer : yunohost app remove accessia --purge
