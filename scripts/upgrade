@@ -30,15 +30,10 @@ if [ -f "$db_path" ]; then
 fi
 
 #=================================================
-# PULL DU CODE SOURCE
-#=================================================
-ynh_script_progression "Mise à jour du code source..."
-
-git -C "$install_dir" pull --rebase
-chown -R "$app:$app" "$install_dir"
-
-#=================================================
-# ARRÊT DES CONTENEURS
+# ARRÊT DES CONTENEURS (avant git pull)
+# Le backend monte install_dir en :rw — on stoppe d'abord
+# pour éviter que git pull --rebase échoue sur des fichiers
+# modifiés par le conteneur en cours d'exécution.
 #=================================================
 ynh_script_progression "Arrêt des conteneurs..."
 
@@ -46,7 +41,19 @@ docker-compose \
     --project-name accessia \
     -f "$install_dir/docker-compose.yml" \
     -f "$install_dir/docker-compose.override.yml" \
-    down
+    down || true
+
+#=================================================
+# MISE À JOUR DU CODE SOURCE
+# Utilise fetch + reset --hard pour gérer proprement
+# les éventuelles modifications locales de fichiers trackés.
+#=================================================
+ynh_script_progression "Mise à jour du code source..."
+
+git -C "$install_dir" fetch origin
+git -C "$install_dir" reset --hard origin/HEAD
+
+chown -R "$app:$app" "$install_dir"
 
 #=================================================
 # REGÉNÉRATION DE LA CONFIG
@@ -55,7 +62,6 @@ ynh_script_progression "Regénération de la configuration Docker..."
 
 export domain port port_backend secret_key data_dir install_dir
 
-# SECURITY FIX: nom correct helpers v2.1
 ynh_config_add \
     --template="docker-compose.override.yml" \
     --destination="$install_dir/docker-compose.override.yml"
@@ -77,8 +83,23 @@ docker-compose \
 #=================================================
 # MISE À JOUR NGINX
 #=================================================
-# SECURITY FIX: nom correct helpers v2.1
 export port_backend
 ynh_config_add_nginx
+
+#=================================================
+# VÉRIFICATION DU DÉMARRAGE
+#=================================================
+ynh_script_progression "Vérification du démarrage (max 60s)..."
+
+for i in $(seq 1 12); do
+    if curl -sf "http://127.0.0.1:$port_backend/api/health" &>/dev/null; then
+        ynh_print_info "Backend opérationnel (tentative $i/12)."
+        break
+    fi
+    if [ "$i" -eq 12 ]; then
+        ynh_die "Le backend n'a pas répondu après 60s. Diagnostiquer : docker logs accessia-backend-1"
+    fi
+    sleep 5
+done
 
 ynh_script_progression "Mise à jour terminée !"
