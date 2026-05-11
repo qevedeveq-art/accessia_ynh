@@ -38,7 +38,7 @@ ram.runtime = "1024M"
     help.fr = "Qui peut accéder à l'app (users = utilisateurs YunoHost, visitors = public)"
     type = "group"
     # SSO : par défaut, accès réservé aux utilisateurs YunoHost authentifiés
-    default = "users"
+    default = "all_users"
 
 [resources]
     [resources.system_user]
