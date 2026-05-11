@@ -1,7 +1,7 @@
 # ═══════════════════════════════════════════════════════════
 #  ACCESSIA Pro — Override Docker Compose pour YunoHost
 #  Généré par le script install via ynh_add_config
-#  Les variables __VAR__ sont substituées automatiquement
+#  Les placeholders MAJUSCULES sont substitués par ynh_config_add
 # ═══════════════════════════════════════════════════════════
 
 # BUG FIX: nom de projet explicite pour éviter les collisions Docker
