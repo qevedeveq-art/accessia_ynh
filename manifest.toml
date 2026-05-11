@@ -48,8 +48,6 @@ ram.runtime = "1024M"
     [resources.ports.backend]
     default = 8001
 
-    [resources.nginx]
-
     [resources.apt]
     # BUG FIX: format espace, pas virgule (requis par YunoHost v2)
     # sqlite3 requis pour le backup WAL-safe
