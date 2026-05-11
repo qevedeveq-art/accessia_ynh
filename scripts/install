@@ -45,8 +45,8 @@ if [ -d "$install_dir/.git" ]; then
     git -C "$install_dir" pull --rebase
 else
     git clone "$REPO_URL" "$install_dir"
-    chown -R "$app:$app" "$install_dir"
 fi
+chown -R "$app:$app" "$install_dir"
 
 #=================================================
 # RÉPERTOIRES DE DONNÉES

@@ -64,7 +64,7 @@ ram.runtime = "1024M"
     public_api.url = "/api/share"
     public_api.additional_urls = [
         "/api/quotes/sign",
-        "/api/nps",
+        "/api/nps/public",
         "/api/diagnostics/share",
         "/api/auth/status",
         "/api/health"
