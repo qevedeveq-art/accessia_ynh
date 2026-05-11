@@ -42,7 +42,7 @@ chown -R "$app:$app" "$install_dir"
 #=================================================
 ynh_script_progression "Arrêt des conteneurs..."
 
-docker compose \
+docker-compose \
     --project-name accessia \
     -f "$install_dir/docker-compose.yml" \
     -f "$install_dir/docker-compose.override.yml" \
@@ -68,7 +68,7 @@ chown root:root "$install_dir/docker-compose.override.yml"
 #=================================================
 ynh_script_progression "Rebuild et redémarrage Docker..."
 
-docker compose \
+docker-compose \
     --project-name accessia \
     -f "$install_dir/docker-compose.yml" \
     -f "$install_dir/docker-compose.override.yml" \

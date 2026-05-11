@@ -83,7 +83,7 @@ chown root:root "$install_dir/docker-compose.override.yml"
 ynh_script_progression "Build Docker (5-10 minutes)..."
 
 # Scripts d'install tournent en root — pas besoin de ynh_exec_as_app pour Docker
-docker compose \
+docker-compose \
     --project-name accessia \
     -f "$install_dir/docker-compose.yml" \
     -f "$install_dir/docker-compose.override.yml" \

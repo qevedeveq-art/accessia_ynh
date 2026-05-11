@@ -44,7 +44,7 @@ chown root:root "$install_dir/docker-compose.override.yml"
 #=================================================
 ynh_script_progression "Redémarrage des conteneurs..."
 
-docker compose \
+docker-compose \
     --project-name accessia \
     -f "$install_dir/docker-compose.yml" \
     -f "$install_dir/docker-compose.override.yml" \

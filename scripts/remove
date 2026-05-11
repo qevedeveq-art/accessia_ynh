@@ -15,7 +15,7 @@ install_dir=$(ynh_app_setting_get --key=install_dir)
 ynh_script_progression "Arrêt des conteneurs Docker..."
 
 if [ -f "$install_dir/docker-compose.yml" ]; then
-    docker compose \
+    docker-compose \
         --project-name accessia \
         -f "$install_dir/docker-compose.yml" \
         -f "$install_dir/docker-compose.override.yml" \

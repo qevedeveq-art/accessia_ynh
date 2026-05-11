@@ -81,4 +81,6 @@ ram.runtime = "1024M"
     default = 8001
 
     [resources.apt]
-    packages = "docker.io docker-compose-plugin git openssl sqlite3"
+    # docker-compose (Debian Bookworm) dépend de docker.io | docker-ce — pas de conflit
+    # docker-compose-plugin n'est PAS dans les repos Debian standards (repo Docker officiel requis)
+    packages = "docker-compose git openssl sqlite3"
