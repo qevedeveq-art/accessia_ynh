@@ -12,6 +12,10 @@ maintainers = ["quentin"]
 
 [upstream]
 license = "proprietary"
+# URL du dépôt du package YunoHost (format requis : https://domain.tld/path/to/repo_ynh)
+code = "https://github.com/qevedeveq-art/accessia_ynh"
+# URL du code source de l'application
+website = "https://github.com/qevedeveq-art/accessia-crm"
 
 [integration]
 yunohost = ">= 11.2"
