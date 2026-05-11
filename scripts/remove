@@ -1,0 +1,39 @@
+#!/bin/bash
+# ═══════════════════════════════════════════════════════════
+#  ACCESSIA Pro — Script de suppression YunoHost
+# ═══════════════════════════════════════════════════════════
+set -eu
+
+source /usr/share/yunohost/helpers
+
+app=$YNH_APP_INSTANCE_NAME
+install_dir=$(ynh_app_setting_get --key=install_dir)
+
+#=================================================
+# ARRÊT ET SUPPRESSION DES CONTENEURS
+#=================================================
+ynh_script_progression "Arrêt des conteneurs Docker..."
+
+if [ -f "$install_dir/CRM/docker-compose.yml" ]; then
+    ynh_exec_as_app docker compose \
+        -f "$install_dir/CRM/docker-compose.yml" \
+        -f "$install_dir/CRM/docker-compose.override.yml" \
+        down --volumes --remove-orphans 2>/dev/null || true
+fi
+
+# Supprimer les images buildées pour libérer l'espace disque
+docker image prune -f --filter "label=com.docker.compose.project=crm" 2>/dev/null || true
+
+#=================================================
+# SUPPRESSION NGINX
+#=================================================
+ynh_remove_nginx_config
+
+#=================================================
+# NOTE SUR LES DONNÉES
+#=================================================
+# Les données dans data_dir (sensia.db, backups) sont conservées
+# par YunoHost lors d'une suppression normale.
+# Pour supprimer les données aussi : yunohost app remove accessia --purge
+
+ynh_script_progression "Suppression terminée."

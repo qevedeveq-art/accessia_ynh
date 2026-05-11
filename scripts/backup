@@ -1,0 +1,37 @@
+#!/bin/bash
+# ═══════════════════════════════════════════════════════════
+#  ACCESSIA Pro — Script de backup YunoHost
+# ═══════════════════════════════════════════════════════════
+set -eu
+
+source /usr/share/yunohost/helpers
+
+app=$YNH_APP_INSTANCE_NAME
+install_dir=$(ynh_app_setting_get --key=install_dir)
+data_dir=$(ynh_app_setting_get --key=data_dir)
+
+#=================================================
+# BACKUP DES DONNÉES
+#=================================================
+ynh_script_progression "Sauvegarde de la base de données SQLite..."
+
+# Backup cohérent avec SQLite en mode WAL (évite la corruption)
+if [ -f "$data_dir/_ACCESSIA_APP/sensia.db" ]; then
+    sqlite3 "$data_dir/_ACCESSIA_APP/sensia.db" ".backup '$YNH_CWD/sensia.db'"
+else
+    ynh_print_warn "Base de données introuvable — backup ignoré"
+fi
+
+#=================================================
+# BACKUP DE LA CONFIGURATION
+#=================================================
+ynh_script_progression "Sauvegarde de la configuration..."
+
+ynh_backup --src_path="$install_dir/CRM/docker-compose.override.yml"
+
+#=================================================
+# BACKUP NGINX
+#=================================================
+ynh_backup_nginx
+
+ynh_script_progression "Backup terminé."

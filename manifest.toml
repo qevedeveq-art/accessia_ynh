@@ -1,0 +1,58 @@
+packaging_format = 2
+
+id = "accessia"
+name = "ACCESSIA Pro CRM"
+
+description.en = "Professional CRM for service companies — contacts, proposals, invoices, AI assistant"
+description.fr = "CRM professionnel pour entreprises de services — contacts, devis, factures, assistant IA"
+
+version = "1.2.0~ynh1"
+
+maintainers = ["quentin"]
+
+[upstream]
+license = "proprietary"
+# website = "https://..."
+# code = "https://github.com/..."
+
+[integration]
+yunohost = ">= 11.2"
+helpers_version = "2.1"
+architectures = "all"
+multi_instance = false
+ldap = false
+sso = false
+disk = "1G"
+ram.build = "1500M"
+ram.runtime = "1024M"
+
+[install]
+    [install.domain]
+    type = "domain"
+
+    [install.init_main_permission]
+    help.en = "Who can access the app (visitors = public, users = YunoHost users only)"
+    help.fr = "Qui peut accéder à l'app (visitors = public, users = utilisateurs YunoHost)"
+    type = "group"
+    default = "visitors"
+
+[resources]
+    [resources.system_user]
+
+    [resources.install_dir]
+    # /var/www/accessia — code source cloné ici
+
+    [resources.data_dir]
+    # /home/yunohost.app/accessia — données persistantes (sensia.db, backups)
+
+    [resources.ports]
+    [resources.ports.main]
+    default = 3001
+
+    [resources.ports.backend]
+    default = 8001
+
+    [resources.nginx]
+
+    [resources.apt]
+    packages = "docker.io, docker-compose-plugin, git, openssl"

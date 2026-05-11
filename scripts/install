@@ -1,0 +1,135 @@
+#!/bin/bash
+# ═══════════════════════════════════════════════════════════
+#  ACCESSIA Pro — Script d'installation YunoHost
+# ═══════════════════════════════════════════════════════════
+set -eu
+
+#=================================================
+# IMPORT DES HELPERS YUNOHOST
+#=================================================
+source /usr/share/yunohost/helpers
+
+#=================================================
+# RÉCUPÉRATION DES VARIABLES
+#=================================================
+domain=$YNH_APP_ARG_DOMAIN
+path="/"
+app=$YNH_APP_INSTANCE_NAME
+
+install_dir=$(ynh_app_setting_get --key=install_dir)
+data_dir=$(ynh_app_setting_get --key=data_dir)
+port=$(ynh_app_setting_get --key=port)
+port_backend=$(ynh_app_setting_get --key=port_backend)
+
+#=================================================
+# VÉRIFICATIONS PRÉALABLES
+#=================================================
+ynh_script_progression "Vérification du domaine et du port..."
+
+ynh_webpath_register --app=$app --domain=$domain --path=$path
+
+# Vérifier que Docker est disponible
+if ! command -v docker &>/dev/null; then
+    ynh_die "Docker n'est pas installé. Installez-le avec : apt install docker.io"
+fi
+
+#=================================================
+# GÉNÉRATION DE LA CLÉ SECRÈTE
+#=================================================
+ynh_script_progression "Génération des secrets..."
+
+secret_key=$(openssl rand -hex 32)
+ynh_app_setting_set --key=secret_key --value="$secret_key"
+
+#=================================================
+# CLONE DU DÉPÔT SOURCE
+#=================================================
+ynh_script_progression "Clonage du code source..."
+
+# Adapter cette URL à votre dépôt Git
+REPO_URL="https://github.com/VOTRE_COMPTE/accessia-crm.git"
+
+if [ -d "$install_dir/.git" ]; then
+    ynh_exec_as_app git -C "$install_dir" pull --rebase
+else
+    ynh_exec_as_app git clone "$REPO_URL" "$install_dir"
+fi
+
+#=================================================
+# CRÉATION DES RÉPERTOIRES DE DONNÉES
+#=================================================
+ynh_script_progression "Création des répertoires de données..."
+
+mkdir -p "$data_dir/_ACCESSIA_APP"
+mkdir -p "$data_dir/backups"
+
+# Assigner les permissions à l'utilisateur système de l'app
+chown -R "$app:$app" "$data_dir"
+chmod 750 "$data_dir"
+chmod 700 "$data_dir/_ACCESSIA_APP"
+
+#=================================================
+# CONFIGURATION DOCKER COMPOSE (OVERRIDE)
+#=================================================
+ynh_script_progression "Génération de la configuration Docker..."
+
+ynh_add_config \
+    --template="docker-compose.override.yml" \
+    --destination="$install_dir/CRM/docker-compose.override.yml" \
+    --vars="
+domain=$domain
+port=$port
+port_backend=$port_backend
+secret_key=$secret_key
+data_dir=$data_dir
+install_dir=$install_dir/CRM
+"
+
+# Permissions restrictives sur le fichier contenant le secret
+chmod 600 "$install_dir/CRM/docker-compose.override.yml"
+chown "$app:$app" "$install_dir/CRM/docker-compose.override.yml"
+
+#=================================================
+# BUILD ET DÉMARRAGE DES CONTENEURS DOCKER
+#=================================================
+ynh_script_progression "Build Docker (peut prendre 5-10 minutes)..."
+
+# Ajouter l'utilisateur système au groupe docker
+usermod -aG docker "$app"
+
+# Build + démarrage via docker compose
+ynh_exec_as_app docker compose \
+    -f "$install_dir/CRM/docker-compose.yml" \
+    -f "$install_dir/CRM/docker-compose.override.yml" \
+    up --build --detach
+
+#=================================================
+# CONFIGURATION NGINX
+#=================================================
+ynh_script_progression "Configuration nginx..."
+
+ynh_add_nginx_config --vars="port_backend=$port_backend"
+
+#=================================================
+# VÉRIFICATION DU DÉMARRAGE
+#=================================================
+ynh_script_progression "Vérification du démarrage de l'application..."
+
+# Attendre max 60 secondes que le backend réponde
+for i in $(seq 1 12); do
+    if curl -sf "http://127.0.0.1:$port_backend/api/health" &>/dev/null; then
+        ynh_print_info "Backend opérationnel."
+        break
+    fi
+    if [ $i -eq 12 ]; then
+        ynh_die "Le backend n'a pas démarré dans les temps. Vérifiez : docker logs accessia-backend"
+    fi
+    sleep 5
+done
+
+#=================================================
+# FINALISATION
+#=================================================
+ynh_script_progression "Installation terminée !"
+ynh_print_info "ACCESSIA Pro est accessible sur https://$domain"
+ynh_print_info "API docs : https://$domain/api/docs"

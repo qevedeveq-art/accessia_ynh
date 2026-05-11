@@ -1,0 +1,48 @@
+# ═══════════════════════════════════════════════════════════
+#  ACCESSIA Pro — Override Docker Compose pour YunoHost
+#  Généré et placé dans le répertoire d'installation par le script install
+#  Les variables __VAR__ sont substituées par ynh_add_config
+# ═══════════════════════════════════════════════════════════
+
+services:
+
+  backend:
+    ports:
+      - "127.0.0.1:__PORT_BACKEND__:8000"
+    volumes:
+      - __DATA_DIR__:/sensia_data:rw
+      - __INSTALL_DIR__:/repo:rw
+      - __INSTALL_DIR__/CATALOGUE_OFFRES.md:/CATALOGUE_OFFRES.md:rw
+    environment:
+      SENSIA_BASE_DIR: /sensia_data
+      DATABASE_URL: "sqlite:////sensia_data/_ACCESSIA_APP/sensia.db"
+      GIT_REPO_PATH: /repo
+      SECRET_KEY: "__SECRET_KEY__"
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 480
+      ALLOWED_ORIGINS: "https://__DOMAIN__"
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    restart: always
+    mem_limit: 512m
+    memswap_limit: 512m
+
+  frontend:
+    build:
+      context: __INSTALL_DIR__/frontend
+      args:
+        # Baked au build-time — doit pointer vers le domaine public
+        # nginx proxie /api/* → backend:8001
+        NEXT_PUBLIC_API_URL: "https://__DOMAIN__"
+    ports:
+      - "127.0.0.1:__PORT__:3001"
+    environment:
+      NEXT_PUBLIC_API_URL: "https://__DOMAIN__"
+      # URL interne pour les rewrites server-side Next.js → backend Docker
+      INTERNAL_API_URL: "http://backend:8000"
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      NODE_OPTIONS: "--max-old-space-size=512"
+    restart: always
+    mem_limit: 512m
+    memswap_limit: 512m
