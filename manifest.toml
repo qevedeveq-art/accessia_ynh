@@ -19,7 +19,8 @@ helpers_version = "2.1"
 architectures = "all"
 multi_instance = false
 ldap = false
-sso = false
+# SSO YunoHost actif — l'app apparaît dans le portail et SSOwat protège l'accès
+sso = true
 disk = "1G"
 ram.build = "1500M"
 ram.runtime = "1024M"
@@ -29,10 +30,11 @@ ram.runtime = "1024M"
     type = "domain"
 
     [install.init_main_permission]
-    help.en = "Who can access the app (visitors = public, users = YunoHost users only)"
-    help.fr = "Qui peut accéder à l'app (visitors = public, users = utilisateurs YunoHost)"
+    help.en = "Who can access the app (users = YunoHost users only, visitors = public)"
+    help.fr = "Qui peut accéder à l'app (users = utilisateurs YunoHost, visitors = public)"
     type = "group"
-    default = "visitors"
+    # SSO : par défaut, accès réservé aux utilisateurs YunoHost authentifiés
+    default = "users"
 
 [resources]
     [resources.system_user]
@@ -41,10 +43,31 @@ ram.runtime = "1024M"
 
     [resources.data_dir]
 
-    # SECURITY FIX: requis pour que init_main_permission prenne effet
-    # Sans ce bloc, l'accès ne peut pas être contrôlé depuis le portail YunoHost
     [resources.permissions]
+    # Route principale — protégée par SSOwat (init_main_permission)
+    # SSOwat injecte X-Remote-User dans chaque requête authentifiée
     main.url = "/"
+
+    # Pages publiques client-facing (signature de devis, NPS, diagnostics partagés)
+    # Accessibles sans compte YunoHost — l'accès est contrôlé par les tokens dans l'URL
+    public.url = "/share"
+    public.additional_urls = ["/sign", "/nps"]
+    public.allowed = "visitors"
+    public.show_tile = false
+    public.auth_header = false
+
+    # API endpoints publics correspondants (appelés par les pages publiques)
+    public_api.url = "/api/share"
+    public_api.additional_urls = [
+        "/api/quotes/sign",
+        "/api/nps",
+        "/api/diagnostics/share",
+        "/api/auth/status",
+        "/api/health"
+    ]
+    public_api.allowed = "visitors"
+    public_api.show_tile = false
+    public_api.auth_header = false
 
     [resources.ports]
     [resources.ports.main]
