@@ -12,8 +12,6 @@ maintainers = ["quentin"]
 
 [upstream]
 license = "proprietary"
-# website = "https://..."
-# code = "https://github.com/..."
 
 [integration]
 yunohost = ">= 11.2"
@@ -40,10 +38,8 @@ ram.runtime = "1024M"
     [resources.system_user]
 
     [resources.install_dir]
-    # /var/www/accessia — code source cloné ici
 
     [resources.data_dir]
-    # /home/yunohost.app/accessia — données persistantes (sensia.db, backups)
 
     [resources.ports]
     [resources.ports.main]
@@ -55,4 +51,6 @@ ram.runtime = "1024M"
     [resources.nginx]
 
     [resources.apt]
-    packages = "docker.io, docker-compose-plugin, git, openssl"
+    # BUG FIX: format espace, pas virgule (requis par YunoHost v2)
+    # sqlite3 requis pour le backup WAL-safe
+    packages = "docker.io docker-compose-plugin git openssl sqlite3"

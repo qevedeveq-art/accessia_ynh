@@ -15,14 +15,21 @@ domain=$(ynh_app_setting_get --key=domain)
 secret_key=$(ynh_app_setting_get --key=secret_key)
 
 #=================================================
-# BACKUP PRÉALABLE DE LA BASE DE DONNÉES
+# BACKUP PRÉVENTIF DE LA BASE DE DONNÉES
 #=================================================
 ynh_script_progression "Backup de la base de données avant mise à jour..."
 
+db_path="$data_dir/_ACCESSIA_APP/sensia.db"
 backup_file="$data_dir/backups/sensia_pre_upgrade_$(date +%Y%m%d_%H%M%S).db"
-if [ -f "$data_dir/_ACCESSIA_APP/sensia.db" ]; then
-    cp "$data_dir/_ACCESSIA_APP/sensia.db" "$backup_file"
-    ynh_print_info "Backup créé : $backup_file"
+
+if [ -f "$db_path" ]; then
+    # BUG FIX: WAL checkpoint avant copie pour garantir la cohérence
+    sqlite3 "$db_path" "PRAGMA wal_checkpoint(FULL);" 2>/dev/null || true
+    cp "$db_path" "$backup_file"
+    ynh_print_info "Backup : $backup_file"
+
+    # Garder seulement les 10 derniers backups pre-upgrade
+    ls -t "$data_dir/backups/sensia_pre_upgrade_"*.db 2>/dev/null | tail -n +11 | xargs rm -f || true
 fi
 
 #=================================================
@@ -30,50 +37,50 @@ fi
 #=================================================
 ynh_script_progression "Mise à jour du code source..."
 
-ynh_exec_as_app git -C "$install_dir" pull --rebase
+# BUG FIX: git dans install_dir directement (pas de /CRM/)
+git -C "$install_dir" pull --rebase
+chown -R "$app:$app" "$install_dir"
 
 #=================================================
 # ARRÊT DES CONTENEURS
 #=================================================
 ynh_script_progression "Arrêt des conteneurs..."
 
-ynh_exec_as_app docker compose \
-    -f "$install_dir/CRM/docker-compose.yml" \
-    -f "$install_dir/CRM/docker-compose.override.yml" \
+docker compose \
+    --project-name accessia \
+    -f "$install_dir/docker-compose.yml" \
+    -f "$install_dir/docker-compose.override.yml" \
     down
 
 #=================================================
-# REGÉNÉRATION DE LA CONFIG DOCKER
+# REGÉNÉRATION DE LA CONFIG
 #=================================================
-ynh_script_progression "Regénération de la configuration..."
+ynh_script_progression "Regénération de la configuration Docker..."
+
+export domain port port_backend secret_key data_dir install_dir
 
 ynh_add_config \
     --template="docker-compose.override.yml" \
-    --destination="$install_dir/CRM/docker-compose.override.yml" \
-    --vars="
-domain=$domain
-port=$port
-port_backend=$port_backend
-secret_key=$secret_key
-data_dir=$data_dir
-install_dir=$install_dir/CRM
-"
+    --destination="$install_dir/docker-compose.override.yml"
 
-chmod 600 "$install_dir/CRM/docker-compose.override.yml"
+chmod 600 "$install_dir/docker-compose.override.yml"
+chown root:root "$install_dir/docker-compose.override.yml"
 
 #=================================================
 # REBUILD ET REDÉMARRAGE
 #=================================================
-ynh_script_progression "Rebuild Docker..."
+ynh_script_progression "Rebuild et redémarrage Docker..."
 
-ynh_exec_as_app docker compose \
-    -f "$install_dir/CRM/docker-compose.yml" \
-    -f "$install_dir/CRM/docker-compose.override.yml" \
+docker compose \
+    --project-name accessia \
+    -f "$install_dir/docker-compose.yml" \
+    -f "$install_dir/docker-compose.override.yml" \
     up --build --detach
 
 #=================================================
 # MISE À JOUR NGINX
 #=================================================
-ynh_add_nginx_config --vars="port_backend=$port_backend"
+export port_backend
+ynh_add_nginx_config
 
 ynh_script_progression "Mise à jour terminée !"

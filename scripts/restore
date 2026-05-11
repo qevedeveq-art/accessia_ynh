@@ -11,6 +11,7 @@ install_dir=$(ynh_app_setting_get --key=install_dir)
 data_dir=$(ynh_app_setting_get --key=data_dir)
 port=$(ynh_app_setting_get --key=port)
 port_backend=$(ynh_app_setting_get --key=port_backend)
+domain=$(ynh_app_setting_get --key=domain)
 
 #=================================================
 # RESTAURATION DE LA BASE DE DONNÉES
@@ -21,7 +22,11 @@ mkdir -p "$data_dir/_ACCESSIA_APP"
 
 if [ -f "$YNH_CWD/sensia.db" ]; then
     cp "$YNH_CWD/sensia.db" "$data_dir/_ACCESSIA_APP/sensia.db"
-    chown "$app:$app" "$data_dir/_ACCESSIA_APP/sensia.db"
+    # Restaurer les fichiers WAL s'ils ont été sauvegardés
+    [ -f "$YNH_CWD/sensia.db-wal" ] && cp "$YNH_CWD/sensia.db-wal" "$data_dir/_ACCESSIA_APP/sensia.db-wal" || true
+    [ -f "$YNH_CWD/sensia.db-shm" ] && cp "$YNH_CWD/sensia.db-shm" "$data_dir/_ACCESSIA_APP/sensia.db-shm" || true
+
+    chown "$app:$app" "$data_dir/_ACCESSIA_APP/sensia.db"* 2>/dev/null || true
     chmod 640 "$data_dir/_ACCESSIA_APP/sensia.db"
 else
     ynh_print_warn "Aucun backup de base de données trouvé — démarrage avec une DB vide"
@@ -32,22 +37,28 @@ fi
 #=================================================
 ynh_script_progression "Restauration de la configuration Docker..."
 
-ynh_restore --src_path="$install_dir/CRM/docker-compose.override.yml"
-chmod 600 "$install_dir/CRM/docker-compose.override.yml"
+# BUG FIX: chemin direct (pas de /CRM/)
+ynh_restore --src_path="$install_dir/docker-compose.override.yml"
+chmod 600 "$install_dir/docker-compose.override.yml"
+chown root:root "$install_dir/docker-compose.override.yml"
 
 #=================================================
 # REDÉMARRAGE DES CONTENEURS
 #=================================================
 ynh_script_progression "Redémarrage des conteneurs..."
 
-ynh_exec_as_app docker compose \
-    -f "$install_dir/CRM/docker-compose.yml" \
-    -f "$install_dir/CRM/docker-compose.override.yml" \
+docker compose \
+    --project-name accessia \
+    -f "$install_dir/docker-compose.yml" \
+    -f "$install_dir/docker-compose.override.yml" \
     up --detach
 
 #=================================================
 # RESTAURATION NGINX
 #=================================================
-ynh_restore_nginx
+ynh_script_progression "Restauration nginx..."
+
+ynh_restore --src_path="/etc/nginx/conf.d/$domain.d/$app.conf"
+ynh_systemctl --service=nginx --action=reload
 
 ynh_script_progression "Restauration terminée."

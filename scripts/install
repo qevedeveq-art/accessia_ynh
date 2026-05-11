@@ -4,33 +4,29 @@
 # ═══════════════════════════════════════════════════════════
 set -eu
 
-#=================================================
-# IMPORT DES HELPERS YUNOHOST
-#=================================================
 source /usr/share/yunohost/helpers
 
 #=================================================
-# RÉCUPÉRATION DES VARIABLES
+# VARIABLES (injectées par YunoHost resources)
 #=================================================
 domain=$YNH_APP_ARG_DOMAIN
-path="/"
 app=$YNH_APP_INSTANCE_NAME
 
+# BUG FIX: récupérées APRÈS que YunoHost resources les a créées
 install_dir=$(ynh_app_setting_get --key=install_dir)
 data_dir=$(ynh_app_setting_get --key=data_dir)
 port=$(ynh_app_setting_get --key=port)
 port_backend=$(ynh_app_setting_get --key=port_backend)
 
-#=================================================
-# VÉRIFICATIONS PRÉALABLES
-#=================================================
-ynh_script_progression "Vérification du domaine et du port..."
+# BUG FIX: suppression de ynh_webpath_register — géré par [resources.nginx]
 
-ynh_webpath_register --app=$app --domain=$domain --path=$path
+#=================================================
+# VÉRIFICATION DOCKER
+#=================================================
+ynh_script_progression "Vérification de Docker..."
 
-# Vérifier que Docker est disponible
 if ! command -v docker &>/dev/null; then
-    ynh_die "Docker n'est pas installé. Installez-le avec : apt install docker.io"
+    ynh_die "Docker n'est pas installé malgré la dépendance apt — vérifiez les logs."
 fi
 
 #=================================================
@@ -42,65 +38,62 @@ secret_key=$(openssl rand -hex 32)
 ynh_app_setting_set --key=secret_key --value="$secret_key"
 
 #=================================================
-# CLONE DU DÉPÔT SOURCE
+# CLONE DU DÉPÔT SOURCE (repo CRM = la source de l'app)
 #=================================================
 ynh_script_progression "Clonage du code source..."
 
-# Adapter cette URL à votre dépôt Git
-REPO_URL="https://github.com/VOTRE_COMPTE/accessia-crm.git"
+# URL du repo contenant docker-compose.yml, frontend/, backend/
+# BUG FIX: on clone le repo CRM directement dans install_dir (pas de sous-dossier /CRM/)
+REPO_URL="https://github.com/qevedeveq-art/accessia-crm.git"
 
 if [ -d "$install_dir/.git" ]; then
-    ynh_exec_as_app git -C "$install_dir" pull --rebase
+    git -C "$install_dir" pull --rebase
 else
-    ynh_exec_as_app git clone "$REPO_URL" "$install_dir"
+    git clone "$REPO_URL" "$install_dir"
+    chown -R "$app:$app" "$install_dir"
 fi
 
 #=================================================
-# CRÉATION DES RÉPERTOIRES DE DONNÉES
+# RÉPERTOIRES DE DONNÉES
 #=================================================
 ynh_script_progression "Création des répertoires de données..."
 
 mkdir -p "$data_dir/_ACCESSIA_APP"
 mkdir -p "$data_dir/backups"
 
-# Assigner les permissions à l'utilisateur système de l'app
 chown -R "$app:$app" "$data_dir"
 chmod 750 "$data_dir"
 chmod 700 "$data_dir/_ACCESSIA_APP"
 
 #=================================================
-# CONFIGURATION DOCKER COMPOSE (OVERRIDE)
+# GÉNÉRATION DE LA CONFIG DOCKER COMPOSE
 #=================================================
 ynh_script_progression "Génération de la configuration Docker..."
 
+# BUG FIX: ynh_add_config substitue __VAR__ depuis les variables shell exportées
+# Pas de --vars (non supporté uniformément) — on exporte les variables
+export domain port port_backend secret_key data_dir install_dir
+
 ynh_add_config \
     --template="docker-compose.override.yml" \
-    --destination="$install_dir/CRM/docker-compose.override.yml" \
-    --vars="
-domain=$domain
-port=$port
-port_backend=$port_backend
-secret_key=$secret_key
-data_dir=$data_dir
-install_dir=$install_dir/CRM
-"
+    --destination="$install_dir/docker-compose.override.yml"
 
-# Permissions restrictives sur le fichier contenant le secret
-chmod 600 "$install_dir/CRM/docker-compose.override.yml"
-chown "$app:$app" "$install_dir/CRM/docker-compose.override.yml"
+# Le fichier contient SECRET_KEY — permissions strictes
+chmod 600 "$install_dir/docker-compose.override.yml"
+chown root:root "$install_dir/docker-compose.override.yml"
 
 #=================================================
-# BUILD ET DÉMARRAGE DES CONTENEURS DOCKER
+# BUILD ET DÉMARRAGE DOCKER
 #=================================================
-ynh_script_progression "Build Docker (peut prendre 5-10 minutes)..."
+ynh_script_progression "Build Docker (5-10 minutes)..."
 
-# Ajouter l'utilisateur système au groupe docker
-usermod -aG docker "$app"
-
-# Build + démarrage via docker compose
-ynh_exec_as_app docker compose \
-    -f "$install_dir/CRM/docker-compose.yml" \
-    -f "$install_dir/CRM/docker-compose.override.yml" \
+# BUG FIX: on exécute Docker en root (install script = root)
+# usermod -aG n'a pas d'effet sur la session courante → on n'utilise PAS ynh_exec_as_app ici
+# --project-name explicite pour éviter les collisions
+docker compose \
+    --project-name accessia \
+    -f "$install_dir/docker-compose.yml" \
+    -f "$install_dir/docker-compose.override.yml" \
     up --build --detach
 
 #=================================================
@@ -108,28 +101,29 @@ ynh_exec_as_app docker compose \
 #=================================================
 ynh_script_progression "Configuration nginx..."
 
-ynh_add_nginx_config --vars="port_backend=$port_backend"
+# BUG FIX: on exporte port_backend pour la substitution dans nginx.conf
+export port_backend
+ynh_add_nginx_config
 
 #=================================================
 # VÉRIFICATION DU DÉMARRAGE
 #=================================================
-ynh_script_progression "Vérification du démarrage de l'application..."
+ynh_script_progression "Vérification du démarrage (max 60s)..."
 
-# Attendre max 60 secondes que le backend réponde
 for i in $(seq 1 12); do
     if curl -sf "http://127.0.0.1:$port_backend/api/health" &>/dev/null; then
-        ynh_print_info "Backend opérationnel."
+        ynh_print_info "Backend opérationnel (tentative $i/12)."
         break
     fi
-    if [ $i -eq 12 ]; then
-        ynh_die "Le backend n'a pas démarré dans les temps. Vérifiez : docker logs accessia-backend"
+    if [ "$i" -eq 12 ]; then
+        ynh_die "Le backend n'a pas répondu. Diagnostiquer avec : docker logs accessia-backend-1"
     fi
     sleep 5
 done
 
 #=================================================
-# FINALISATION
+# FIN
 #=================================================
 ynh_script_progression "Installation terminée !"
-ynh_print_info "ACCESSIA Pro est accessible sur https://$domain"
-ynh_print_info "API docs : https://$domain/api/docs"
+ynh_print_info "ACCESSIA Pro → https://$domain"
+ynh_print_info "API docs     → https://$domain/api/docs"

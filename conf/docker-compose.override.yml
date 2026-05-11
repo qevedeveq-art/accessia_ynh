@@ -1,12 +1,17 @@
 # ═══════════════════════════════════════════════════════════
 #  ACCESSIA Pro — Override Docker Compose pour YunoHost
-#  Généré et placé dans le répertoire d'installation par le script install
-#  Les variables __VAR__ sont substituées par ynh_add_config
+#  Généré par le script install via ynh_add_config
+#  Les variables __VAR__ sont substituées automatiquement
 # ═══════════════════════════════════════════════════════════
+
+# BUG FIX: nom de projet explicite pour éviter les collisions Docker
+# (sans ça, Compose utilise le nom du dossier parent — "crm" ou "accessia")
+name: accessia
 
 services:
 
   backend:
+    # BUG FIX: pas de /CRM/ — on clone le repo CRM directement dans install_dir
     ports:
       - "127.0.0.1:__PORT_BACKEND__:8000"
     volumes:
@@ -31,14 +36,14 @@ services:
     build:
       context: __INSTALL_DIR__/frontend
       args:
-        # Baked au build-time — doit pointer vers le domaine public
-        # nginx proxie /api/* → backend:8001
+        # Baked au build-time dans le bundle JS — doit être le domaine public
+        # nginx intercepte /api/* et proxie vers backend:__PORT_BACKEND__
         NEXT_PUBLIC_API_URL: "https://__DOMAIN__"
     ports:
       - "127.0.0.1:__PORT__:3001"
     environment:
       NEXT_PUBLIC_API_URL: "https://__DOMAIN__"
-      # URL interne pour les rewrites server-side Next.js → backend Docker
+      # Rewrite server-side Next.js → backend via réseau interne Docker
       INTERNAL_API_URL: "http://backend:8000"
       NODE_ENV: production
       NEXT_TELEMETRY_DISABLED: "1"
