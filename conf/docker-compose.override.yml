@@ -4,10 +4,6 @@
 #  Les placeholders MAJUSCULES sont substitués par ynh_config_add
 # ═══════════════════════════════════════════════════════════
 
-# BUG FIX: nom de projet explicite pour éviter les collisions Docker
-# (sans ça, Compose utilise le nom du dossier parent — "crm" ou "accessia")
-name: accessia
-
 services:
 
   backend:
